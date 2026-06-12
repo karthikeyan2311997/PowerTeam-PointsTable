@@ -18,8 +18,8 @@ type FormRow = {
 
 const STAR_RANKS = [
   { value: '0', label: 'Not ranked' },
-  { value: '1', label: '#1 – 20 pts' },
-  { value: '2', label: '#2 – 10 pts' },
+  { value: '1', label: '#1 – 30 pts' },
+  { value: '2', label: '#2 – 15 pts' },
   { value: '3', label: '#3 – 5 pts' },
   { value: '4', label: '#4 – 0 pts' },
 ];

@@ -56,9 +56,9 @@ export function computePoints(scores: ScoreInput[]): Array<ScoreInput & {
   const visitors = scores.map(s => s.visitor_count);
 
   const greenPts = [20, 10, 5, 0];
-  const bizPts  = [30, 15, 5, 0];
+  const bizPts  = [20, 10, 5, 0];
   const visPts  = [30, 15, 5, 0];
-  const starPts = [20, 10, 5, 0];
+  const starPts = [30, 15, 5, 0];
 
   return scores.map((s, i) => {
     const gRank = rank(greenPcts, i);
