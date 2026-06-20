@@ -28,11 +28,6 @@ function getNextMonthId(monthId: string): string {
   return getMonthId(next);
 }
 
-function weekIdToMonthId(weekId: string): string | null {
-  const match = weekId.match(/^(\d{4}-\d{2})-\d{2}$/);
-  return match?.[1] ?? null;
-}
-
 export default function Leaderboard() {
   const [scores, setScores] = useState<RankedScore[]>([]);
   const [months, setMonths] = useState<string[]>([]);
@@ -42,11 +37,11 @@ export default function Leaderboard() {
 
   const fetchMonths = useCallback(async () => {
     const { data } = await supabase
-      .from('weekly_scores')
-      .select('week_id')
-      .order('week_id', { ascending: false });
+      .from('monthly_scores')
+      .select('month_id')
+      .order('month_id', { ascending: false });
     if (data) {
-      const unique = [...new Set(data.map(d => weekIdToMonthId(d.week_id)).filter((m): m is string => Boolean(m)))];
+      const unique = [...new Set(data.map(d => d.month_id))];
       setMonths(unique);
       if (unique.length > 0 && !unique.includes(selectedMonth)) {
         setSelectedMonth(unique[0]);
@@ -57,17 +52,17 @@ export default function Leaderboard() {
   const fetchScores = useCallback(async (monthId: string) => {
     setLoading(true);
     const { data } = await supabase
-      .from('weekly_scores')
+      .from('monthly_scores')
       .select('*, teams(id, name, color)')
-      .gte('week_id', `${monthId}-01`)
-      .lt('week_id', `${getNextMonthId(monthId)}-01`);
+      .gte('month_id', monthId)
+      .lt('month_id', getNextMonthId(monthId));
 
     if (data && data.length > 0) {
       const totals = new Map<string, MonthlyScore>();
       data.forEach(score => {
         const existing = totals.get(score.team_id);
         if (!existing) {
-          totals.set(score.team_id, { ...score, week_id: monthId, week_count: 1 });
+          totals.set(score.team_id, { ...score, month_id: monthId, week_count: 1 });
           return;
         }
 
