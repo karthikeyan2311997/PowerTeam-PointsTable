@@ -1,51 +1,98 @@
 import { useEffect, useState, useCallback } from 'react';
 import { Trophy, TrendingUp, Users, Star, Award, ChevronDown, RefreshCw } from 'lucide-react';
-import { supabase, WeeklyScore, Team, getWeekId, weekIdToLabel } from '../lib/supabase';
+import { supabase, WeeklyScore } from '../lib/supabase';
 
 type RankedScore = WeeklyScore & { rank: number };
+type MonthlyScore = WeeklyScore & { week_count: number };
 
 const MEDAL_COLORS = ['#F59E0B', '#94A3B8', '#CD7C2F', '#6B7280'];
 const MEDAL_LABELS = ['1st', '2nd', '3rd', '4th'];
 
+function getMonthId(date = new Date()): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  return `${year}-${month}`;
+}
+
+function monthIdToLabel(monthId: string): string {
+  const [year, month] = monthId.split('-').map(Number);
+  return new Date(year, month - 1, 1).toLocaleDateString('en-GB', {
+    month: 'long',
+    year: 'numeric',
+  });
+}
+
+function getNextMonthId(monthId: string): string {
+  const [year, month] = monthId.split('-').map(Number);
+  const next = new Date(year, month, 1);
+  return getMonthId(next);
+}
+
+function weekIdToMonthId(weekId: string): string | null {
+  const match = weekId.match(/^(\d{4}-\d{2})-\d{2}$/);
+  return match?.[1] ?? null;
+}
+
 export default function Leaderboard() {
-  const [teams, setTeams] = useState<Team[]>([]);
   const [scores, setScores] = useState<RankedScore[]>([]);
-  const [weeks, setWeeks] = useState<string[]>([]);
-  const [selectedWeek, setSelectedWeek] = useState<string>(getWeekId());
+  const [months, setMonths] = useState<string[]>([]);
+  const [selectedMonth, setSelectedMonth] = useState<string>(getMonthId());
   const [loading, setLoading] = useState(true);
   const [dropdownOpen, setDropdownOpen] = useState(false);
 
-  const fetchTeams = useCallback(async () => {
-    const { data } = await supabase.from('teams').select('*').order('name');
-    if (data) setTeams(data);
-  }, []);
-
-  const fetchWeeks = useCallback(async () => {
+  const fetchMonths = useCallback(async () => {
     const { data } = await supabase
       .from('weekly_scores')
       .select('week_id')
       .order('week_id', { ascending: false });
     if (data) {
-      const unique = [...new Set(data.map(d => d.week_id))];
-      setWeeks(unique);
-      if (unique.length > 0 && !unique.includes(selectedWeek)) {
-        setSelectedWeek(unique[0]);
+      const unique = [...new Set(data.map(d => weekIdToMonthId(d.week_id)).filter((m): m is string => Boolean(m)))];
+      setMonths(unique);
+      if (unique.length > 0 && !unique.includes(selectedMonth)) {
+        setSelectedMonth(unique[0]);
       }
     }
-  }, []);
+  }, [selectedMonth]);
 
-  const fetchScores = useCallback(async (weekId: string) => {
+  const fetchScores = useCallback(async (monthId: string) => {
     setLoading(true);
     const { data } = await supabase
       .from('weekly_scores')
       .select('*, teams(id, name, color)')
-      .eq('week_id', weekId)
-      .order('total_points', { ascending: false });
+      .gte('week_id', `${monthId}-01`)
+      .lt('week_id', `${getNextMonthId(monthId)}-01`);
 
     if (data && data.length > 0) {
+      const totals = new Map<string, MonthlyScore>();
+      data.forEach(score => {
+        const existing = totals.get(score.team_id);
+        if (!existing) {
+          totals.set(score.team_id, { ...score, week_id: monthId, week_count: 1 });
+          return;
+        }
+
+        existing.green_score_pct += score.green_score_pct;
+        existing.business_amount += score.business_amount;
+        existing.visitor_count += score.visitor_count;
+        existing.green_points += score.green_points;
+        existing.business_points += score.business_points;
+        existing.visitor_points += score.visitor_points;
+        existing.star_points += score.star_points;
+        existing.total_points += score.total_points;
+        existing.week_count += 1;
+      });
+
+      const monthlyScores = [...totals.values()]
+        .map(score => ({
+          ...score,
+          green_score_pct: Math.round(score.green_score_pct / score.week_count),
+          star_rank: 0,
+        }))
+        .sort((a, b) => b.total_points - a.total_points);
+
       let rank = 1;
-      const ranked: RankedScore[] = data.map((s, i) => {
-        if (i > 0 && s.total_points < data[i - 1].total_points) rank = i + 1;
+      const ranked: RankedScore[] = monthlyScores.map((s, i) => {
+        if (i > 0 && s.total_points < monthlyScores[i - 1].total_points) rank = i + 1;
         return { ...s, rank };
       });
       setScores(ranked);
@@ -56,13 +103,12 @@ export default function Leaderboard() {
   }, []);
 
   useEffect(() => {
-    fetchTeams();
-    fetchWeeks();
-  }, [fetchTeams, fetchWeeks]);
+    fetchMonths();
+  }, [fetchMonths]);
 
   useEffect(() => {
-    fetchScores(selectedWeek);
-  }, [selectedWeek, fetchScores]);
+    fetchScores(selectedMonth);
+  }, [selectedMonth, fetchScores]);
 
   const winner = scores[0];
 
@@ -84,7 +130,7 @@ export default function Leaderboard() {
             Power Teams Championship
           </div>
           <h1 className="text-4xl md:text-5xl font-extrabold tracking-tight mb-2 bg-gradient-to-r from-white via-slate-200 to-slate-400 bg-clip-text text-transparent">
-            Weekly Leaderboard
+            Monthly Leaderboard
           </h1>
           <p className="text-slate-400 text-sm">
             Compete. Perform. Lead. The trophy is yours to win.
@@ -93,34 +139,34 @@ export default function Leaderboard() {
       </header>
 
       <main className="max-w-5xl mx-auto px-4 py-8 space-y-8">
-        {/* Week Selector */}
+        {/* Month Selector */}
         <div className="flex items-center justify-between flex-wrap gap-4">
           <div className="relative">
             <button
               onClick={() => setDropdownOpen(o => !o)}
               className="flex items-center gap-2 bg-white/5 border border-white/10 hover:border-white/20 text-white px-4 py-2 rounded-xl text-sm font-medium transition-colors"
             >
-              <span>{weeks.includes(selectedWeek) ? weekIdToLabel(selectedWeek) : 'Select week'}</span>
+              <span>{months.includes(selectedMonth) ? monthIdToLabel(selectedMonth) : 'Select month'}</span>
               <ChevronDown size={14} className={`transition-transform ${dropdownOpen ? 'rotate-180' : ''}`} />
             </button>
-            {dropdownOpen && weeks.length > 0 && (
+            {dropdownOpen && months.length > 0 && (
               <div className="absolute top-full mt-2 left-0 z-10 bg-[#131929] border border-white/10 rounded-xl shadow-2xl min-w-[220px] py-1 overflow-hidden">
-                {weeks.map(w => (
+                {months.map(month => (
                   <button
-                    key={w}
-                    onClick={() => { setSelectedWeek(w); setDropdownOpen(false); }}
+                    key={month}
+                    onClick={() => { setSelectedMonth(month); setDropdownOpen(false); }}
                     className={`w-full text-left px-4 py-2 text-sm hover:bg-white/5 transition-colors ${
-                      w === selectedWeek ? 'text-sky-400 font-semibold' : 'text-slate-300'
+                      month === selectedMonth ? 'text-sky-400 font-semibold' : 'text-slate-300'
                     }`}
                   >
-                    {weekIdToLabel(w)}
+                    {monthIdToLabel(month)}
                   </button>
                 ))}
               </div>
             )}
           </div>
           <button
-            onClick={() => fetchScores(selectedWeek)}
+            onClick={() => fetchScores(selectedMonth)}
             className="flex items-center gap-2 text-slate-400 hover:text-white text-xs transition-colors"
           >
             <RefreshCw size={12} />
@@ -131,7 +177,7 @@ export default function Leaderboard() {
         {loading ? (
           <LoadingSkeleton />
         ) : scores.length === 0 ? (
-          <EmptyState weekLabel={weekIdToLabel(selectedWeek)} />
+          <EmptyState monthLabel={monthIdToLabel(selectedMonth)} />
         ) : (
           <>
             {/* Winner Spotlight */}
@@ -156,7 +202,7 @@ export default function Leaderboard() {
       </main>
 
       <footer className="text-center text-slate-600 text-xs py-8">
-        Power Teams Championship &bull; Updated weekly
+        Power Teams Championship &bull; Updated monthly
       </footer>
     </div>
   );
@@ -176,7 +222,7 @@ function WinnerCard({ score }: { score: RankedScore }) {
           <Trophy size={28} style={{ color }} />
         </div>
         <div>
-          <p className="text-xs text-amber-400 font-semibold tracking-widest uppercase mb-1">Power Team of the Week</p>
+          <p className="text-xs text-amber-400 font-semibold tracking-widest uppercase mb-1">Power Team of the Month</p>
           <h2 className="text-3xl font-extrabold" style={{ color }}>{team?.name}</h2>
         </div>
         <div className="flex items-end gap-1">
@@ -251,7 +297,6 @@ function ScoreBreakdownTable({ scores }: { scores: RankedScore[] }) {
               <th className="text-center px-4 py-3">Biz Pts</th>
               <th className="text-center px-4 py-3">Visitors</th>
               <th className="text-center px-4 py-3">Vis Pts</th>
-              <th className="text-center px-4 py-3">Star Rank</th>
               <th className="text-center px-4 py-3">Star Pts</th>
               <th className="text-center px-4 py-3 font-bold text-white">Total</th>
             </tr>
@@ -268,7 +313,6 @@ function ScoreBreakdownTable({ scores }: { scores: RankedScore[] }) {
                   <td className="text-center px-4 py-3 text-amber-400 font-medium">{s.business_points}</td>
                   <td className="text-center px-4 py-3 text-slate-300">{s.visitor_count.toLocaleString()}</td>
                   <td className="text-center px-4 py-3 text-sky-400 font-medium">{s.visitor_points}</td>
-                  <td className="text-center px-4 py-3 text-slate-300">{s.star_rank > 0 ? `#${s.star_rank}` : '—'}</td>
                   <td className="text-center px-4 py-3 text-violet-400 font-medium">{s.star_points}</td>
                   <td className="text-center px-4 py-3 font-extrabold text-white text-base">{s.total_points}</td>
                 </tr>
@@ -286,13 +330,13 @@ function CategoryHighlights({ scores }: { scores: RankedScore[] }) {
   const topGreen = [...scores].sort((a, b) => b.green_score_pct - a.green_score_pct)[0];
   const topBiz = [...scores].sort((a, b) => b.business_amount - a.business_amount)[0];
   const topVis = [...scores].sort((a, b) => b.visitor_count - a.visitor_count)[0];
-  const topStar = scores.find(s => s.star_rank === 1);
+  const topStar = [...scores].sort((a, b) => b.star_points - a.star_points)[0];
 
   const highlights = [
     { icon: TrendingUp, label: 'Green Score Leader', team: topGreen?.teams?.name, value: `${topGreen?.green_score_pct}%`, color: '#22C55E' },
     { icon: Award, label: 'Business Leader', team: topBiz?.teams?.name, value: topBiz?.business_amount.toLocaleString(), color: '#F59E0B' },
     { icon: Users, label: 'Visitor Leader', team: topVis?.teams?.name, value: topVis?.visitor_count.toLocaleString(), color: '#0EA5E9' },
-    { icon: Star, label: 'Star of the Week', team: topStar?.teams?.name ?? '—', value: topStar ? '#1 Ranked' : 'Not awarded', color: '#EAB308' },
+    { icon: Star, label: 'Star Points Leader', team: topStar?.teams?.name ?? '-', value: topStar ? `${topStar.star_points} pts` : 'Not awarded', color: '#EAB308' },
   ];
 
   return (
@@ -324,12 +368,12 @@ function LoadingSkeleton() {
   );
 }
 
-function EmptyState({ weekLabel }: { weekLabel: string }) {
+function EmptyState({ monthLabel }: { monthLabel: string }) {
   return (
     <div className="text-center py-20">
       <Trophy size={48} className="mx-auto text-slate-700 mb-4" />
       <p className="text-slate-400 font-medium">No scores recorded yet</p>
-      <p className="text-slate-600 text-sm mt-1">{weekLabel}</p>
+      <p className="text-slate-600 text-sm mt-1">{monthLabel}</p>
     </div>
   );
 }

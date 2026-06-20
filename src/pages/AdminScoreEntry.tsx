@@ -3,7 +3,7 @@ import {
   LogOut, Trophy, Plus, Save, ChevronDown, CheckCircle2, AlertCircle, Settings
 } from 'lucide-react';
 import {
-  supabase, Team, WeeklyScore, ScoreInput, computePoints, getWeekId, weekIdToLabel
+  supabase, Team, MonthlyScore, ScoreInput, computePoints, getMonthId, monthIdToLabel
 } from '../lib/supabase';
 
 type Props = { onLogout: () => void };
@@ -24,29 +24,29 @@ const STAR_RANKS = [
   { value: '4', label: '#4 – 0 pts' },
 ];
 
-function generateWeekOptions(): string[] {
-  const weeks: string[] = [];
-  const current = getWeekId();
-  weeks.push(current);
-  // Add 26 past weeks
-  for (let i = 1; i <= 26; i++) {
+function generateMonthOptions(): string[] {
+  const months: string[] = [];
+  const current = getMonthId();
+  months.push(current);
+  // Add 12 past months
+  for (let i = 1; i <= 12; i++) {
     const d = new Date();
-    d.setDate(d.getDate() - i * 7);
-    const wid = getWeekId(d);
-    if (!weeks.includes(wid)) weeks.push(wid);
+    d.setMonth(d.getMonth() - i);
+    const monthId = getMonthId(d);
+    if (!months.includes(monthId)) months.push(monthId);
   }
-  return weeks;
+  return months;
 }
 
 export default function AdminScoreEntry({ onLogout }: Props) {
   const [teams, setTeams] = useState<Team[]>([]);
-  const [selectedWeek, setSelectedWeek] = useState<string>(getWeekId());
-  const [weekOptions] = useState<string[]>(generateWeekOptions);
-  const [weekDropdown, setWeekDropdown] = useState(false);
+  const [selectedMonth, setSelectedMonth] = useState<string>(getMonthId());
+  const [monthOptions] = useState<string[]>(generateMonthOptions);
+  const [monthDropdown, setMonthDropdown] = useState(false);
   const [rows, setRows] = useState<FormRow[]>([]);
   const [saving, setSaving] = useState(false);
   const [status, setStatus] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
-  const [existingScores, setExistingScores] = useState<WeeklyScore[]>([]);
+  const [existingScores, setExistingScores] = useState<MonthlyScore[]>([]);
   const [preview, setPreview] = useState<ReturnType<typeof computePoints>>([]);
 
   const fetchTeams = useCallback(async () => {
@@ -54,16 +54,16 @@ export default function AdminScoreEntry({ onLogout }: Props) {
     if (data) setTeams(data);
   }, []);
 
-  const fetchExisting = useCallback(async (weekId: string) => {
+  const fetchExisting = useCallback(async (monthId: string) => {
     const { data } = await supabase
       .from('weekly_scores')
       .select('*')
-      .eq('week_id', weekId);
+      .eq('week_id', monthId);
     setExistingScores(data ?? []);
     return data ?? [];
   }, []);
 
-  const initRows = useCallback((teamList: Team[], existing: WeeklyScore[]) => {
+  const initRows = useCallback((teamList: Team[], existing: MonthlyScore[]) => {
     const rows: FormRow[] = teamList.map(t => {
       const ex = existing.find(e => e.team_id === t.id);
       return {
@@ -83,17 +83,17 @@ export default function AdminScoreEntry({ onLogout }: Props) {
 
   useEffect(() => {
     if (teams.length === 0) return;
-    fetchExisting(selectedWeek).then(existing => {
+    fetchExisting(selectedMonth).then(existing => {
       initRows(teams, existing);
     });
-  }, [selectedWeek, teams, fetchExisting, initRows]);
+  }, [selectedMonth, teams, fetchExisting, initRows]);
 
   useEffect(() => {
     if (rows.length < 4) return;
     const filled = rows.filter(r => r.green_score_pct !== '' && r.business_amount !== '' && r.visitor_count !== '');
     if (filled.length === 4) {
       const inputs: ScoreInput[] = rows.map(r => ({
-        week_id: selectedWeek,
+        week_id: selectedMonth,
         team_id: r.team_id,
         green_score_pct: parseFloat(r.green_score_pct) || 0,
         business_amount: parseFloat(r.business_amount) || 0,
@@ -104,7 +104,7 @@ export default function AdminScoreEntry({ onLogout }: Props) {
     } else {
       setPreview([]);
     }
-  }, [rows, selectedWeek]);
+  }, [rows, selectedMonth]);
 
   const updateRow = (idx: number, field: keyof FormRow, value: string) => {
     setRows(prev => {
@@ -135,7 +135,7 @@ export default function AdminScoreEntry({ onLogout }: Props) {
     const starRanks = rows.map(r => parseInt(r.star_rank)).filter(n => n > 0);
     const uniqueRanks = new Set(starRanks);
     if (starRanks.length !== uniqueRanks.size) {
-      setStatus({ type: 'error', message: 'Each Star of the Week rank (1–4) can only be assigned once.' });
+      setStatus({ type: 'error', message: 'Each Star of the Month rank (1-4) can only be assigned once.' });
       return;
     }
 
@@ -143,7 +143,7 @@ export default function AdminScoreEntry({ onLogout }: Props) {
     setStatus(null);
 
     const inputs: ScoreInput[] = rows.map(r => ({
-      week_id: selectedWeek,
+      week_id: selectedMonth,
       team_id: r.team_id,
       green_score_pct: parseFloat(r.green_score_pct),
       business_amount: parseFloat(r.business_amount),
@@ -176,8 +176,8 @@ export default function AdminScoreEntry({ onLogout }: Props) {
     if (error) {
       setStatus({ type: 'error', message: error.message });
     } else {
-      setStatus({ type: 'success', message: `Scores saved for ${weekIdToLabel(selectedWeek)}!` });
-      fetchExisting(selectedWeek);
+      setStatus({ type: 'success', message: `Scores saved for ${monthIdToLabel(selectedMonth)}!` });
+      fetchExisting(selectedMonth);
     }
   };
 
@@ -216,27 +216,27 @@ export default function AdminScoreEntry({ onLogout }: Props) {
       </header>
 
       <main className="max-w-5xl mx-auto px-4 py-8 space-y-6">
-        {/* Week Selector */}
+        {/* Month Selector */}
         <div className="flex items-center gap-4 flex-wrap">
           <div>
-            <label className="block text-xs text-slate-500 mb-1 uppercase tracking-wide">Week</label>
+            <label className="block text-xs text-slate-500 mb-1 uppercase tracking-wide">Month</label>
             <div className="relative">
               <button
-                onClick={() => setWeekDropdown(o => !o)}
+                onClick={() => setMonthDropdown(o => !o)}
                 className="flex items-center gap-2 bg-white/5 border border-white/10 hover:border-white/20 px-4 py-2 rounded-xl text-sm font-medium text-white transition-colors min-w-[220px]"
               >
-                <span className="flex-1 text-left">{weekIdToLabel(selectedWeek)}</span>
-                <ChevronDown size={14} className={`transition-transform ${weekDropdown ? 'rotate-180' : ''}`} />
+                <span className="flex-1 text-left">{monthIdToLabel(selectedMonth)}</span>
+                <ChevronDown size={14} className={`transition-transform ${monthDropdown ? 'rotate-180' : ''}`} />
               </button>
-              {weekDropdown && (
+              {monthDropdown && (
                 <div className="absolute top-full mt-2 left-0 z-10 bg-[#131929] border border-white/10 rounded-xl shadow-2xl min-w-[220px] py-1 overflow-hidden">
-                  {weekOptions.map(w => (
+                  {monthOptions.map(month => (
                     <button
-                      key={w}
-                      onClick={() => { setSelectedWeek(w); setWeekDropdown(false); }}
-                      className={`w-full text-left px-4 py-2 text-sm hover:bg-white/5 transition-colors ${w === selectedWeek ? 'text-sky-400 font-semibold' : 'text-slate-300'}`}
+                      key={month}
+                      onClick={() => { setSelectedMonth(month); setMonthDropdown(false); }}
+                      className={`w-full text-left px-4 py-2 text-sm hover:bg-white/5 transition-colors ${month === selectedMonth ? 'text-sky-400 font-semibold' : 'text-slate-300'}`}
                     >
-                      {weekIdToLabel(w)}
+                      {monthIdToLabel(month)}
                     </button>
                   ))}
                 </div>
@@ -256,7 +256,7 @@ export default function AdminScoreEntry({ onLogout }: Props) {
           <div className="rounded-2xl border border-white/10 overflow-hidden">
             <div className="bg-white/5 px-6 py-4 flex items-center gap-2">
               <Plus size={16} className="text-slate-400" />
-              <span className="font-semibold text-sm">Enter Weekly Scores</span>
+              <span className="font-semibold text-sm">Enter Monthly Scores</span>
             </div>
 
             <div className="p-6 space-y-4">
@@ -312,7 +312,7 @@ export default function AdminScoreEntry({ onLogout }: Props) {
                       />
                       <div>
                         <label className="block text-xs font-semibold text-slate-400 mb-1.5 uppercase tracking-wide">
-                          Star of the Week
+                          Star of the Month
                         </label>
                         <select
                           value={row.star_rank}

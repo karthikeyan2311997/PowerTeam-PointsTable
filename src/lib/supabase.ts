@@ -11,7 +11,7 @@ export type Team = {
   color: string;
 };
 
-export type WeeklyScore = {
+export type MonthlyScore = {
   id: string;
   week_id: string;
   team_id: string;
@@ -26,6 +26,8 @@ export type WeeklyScore = {
   total_points: number;
   teams?: Team;
 };
+
+export type WeeklyScore = MonthlyScore;
 
 export type ScoreInput = {
   week_id: string;
@@ -83,6 +85,20 @@ export function computePoints(scores: ScoreInput[]): Array<ScoreInput & {
 }
 
 // Returns the Tuesday that starts the current week (weeks run Tue–Mon).
+export function getMonthId(date = new Date()): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  return `${year}-${month}-01`;
+}
+
+export function monthIdToLabel(monthId: string): string {
+  const [year, month] = monthId.split('-').map(Number);
+  return new Date(year, month - 1, 1).toLocaleDateString('en-GB', {
+    month: 'long',
+    year: 'numeric',
+  });
+}
+
 export function getWeekId(date = new Date()): string {
   const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
   // getUTCDay(): 0=Sun,1=Mon,2=Tue,3=Wed,4=Thu,5=Fri,6=Sat
