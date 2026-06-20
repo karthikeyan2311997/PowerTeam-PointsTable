@@ -1,9 +1,9 @@
 import { useEffect, useState, useCallback } from 'react';
 import { Trophy, TrendingUp, Users, Star, Award, ChevronDown, RefreshCw } from 'lucide-react';
-import { supabase, WeeklyScore } from '../lib/supabase';
+import { supabase, MonthlyScore } from '../lib/supabase';
 
-type RankedScore = WeeklyScore & { rank: number };
-type MonthlyScore = WeeklyScore & { week_count: number };
+type RankedScore = MonthlyScore & { rank: number };
+type RankedScoreWithCount = MonthlyScore & { month_count: number };
 
 const MEDAL_COLORS = ['#F59E0B', '#94A3B8', '#CD7C2F', '#6B7280'];
 const MEDAL_LABELS = ['1st', '2nd', '3rd', '4th'];
@@ -58,11 +58,11 @@ export default function Leaderboard() {
       .lt('month_id', getNextMonthId(monthId));
 
     if (data && data.length > 0) {
-      const totals = new Map<string, MonthlyScore>();
+      const totals = new Map<string, RankedScoreWithCount>();
       data.forEach(score => {
         const existing = totals.get(score.team_id);
         if (!existing) {
-          totals.set(score.team_id, { ...score, month_id: monthId, week_count: 1 });
+          totals.set(score.team_id, { ...score, month_id: monthId, month_count: 1 });
           return;
         }
 
@@ -74,13 +74,13 @@ export default function Leaderboard() {
         existing.visitor_points += score.visitor_points;
         existing.star_points += score.star_points;
         existing.total_points += score.total_points;
-        existing.week_count += 1;
+        existing.month_count += 1;
       });
 
       const monthlyScores = [...totals.values()]
         .map(score => ({
           ...score,
-          green_score_pct: Math.round(score.green_score_pct / score.week_count),
+          green_score_pct: Math.round(score.green_score_pct / score.month_count),
           star_rank: 0,
         }))
         .sort((a, b) => b.total_points - a.total_points);

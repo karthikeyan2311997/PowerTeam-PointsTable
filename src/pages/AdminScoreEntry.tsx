@@ -56,9 +56,9 @@ export default function AdminScoreEntry({ onLogout }: Props) {
 
   const fetchExisting = useCallback(async (monthId: string) => {
     const { data } = await supabase
-      .from('weekly_scores')
+      .from('monthly_scores')
       .select('*')
-      .eq('week_id', monthId);
+      .eq('month_id', monthId);
     setExistingScores(data ?? []);
     return data ?? [];
   }, []);
@@ -167,8 +167,8 @@ export default function AdminScoreEntry({ onLogout }: Props) {
       total_points: c.total_points,
     }));
 
-    const { error } = await supabase.from('weekly_scores').upsert(upserts, {
-      onConflict: 'week_id,team_id',
+    const { error } = await supabase.from('monthly_scores').upsert(upserts, {
+      onConflict: 'month_id,team_id',
     });
 
     setSaving(false);

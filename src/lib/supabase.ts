@@ -27,7 +27,7 @@ export type MonthlyScore = {
   teams?: Team;
 };
 
-export type WeeklyScore = MonthlyScore;
+
 
 export type ScoreInput = {
   week_id: string;
