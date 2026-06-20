@@ -93,7 +93,7 @@ export default function AdminScoreEntry({ onLogout }: Props) {
     const filled = rows.filter(r => r.green_score_pct !== '' && r.business_amount !== '' && r.visitor_count !== '');
     if (filled.length === 4) {
       const inputs: ScoreInput[] = rows.map(r => ({
-        week_id: selectedMonth,
+        month_id: selectedMonth,
         team_id: r.team_id,
         green_score_pct: parseFloat(r.green_score_pct) || 0,
         business_amount: parseFloat(r.business_amount) || 0,
@@ -143,7 +143,7 @@ export default function AdminScoreEntry({ onLogout }: Props) {
     setStatus(null);
 
     const inputs: ScoreInput[] = rows.map(r => ({
-      week_id: selectedMonth,
+      month_id: selectedMonth,
       team_id: r.team_id,
       green_score_pct: parseFloat(r.green_score_pct),
       business_amount: parseFloat(r.business_amount),
@@ -154,7 +154,7 @@ export default function AdminScoreEntry({ onLogout }: Props) {
     const computed = computePoints(inputs);
 
     const upserts = computed.map(c => ({
-      week_id: c.week_id,
+      month_id: c.month_id,
       team_id: c.team_id,
       green_score_pct: c.green_score_pct,
       business_amount: c.business_amount,

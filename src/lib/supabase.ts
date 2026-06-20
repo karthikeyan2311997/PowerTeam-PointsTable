@@ -27,10 +27,8 @@ export type MonthlyScore = {
   teams?: Team;
 };
 
-
-
 export type ScoreInput = {
-  week_id: string;
+  month_id: string;
   team_id: string;
   green_score_pct: number;
   business_amount: number;
