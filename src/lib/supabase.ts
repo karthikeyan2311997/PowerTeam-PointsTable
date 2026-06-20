@@ -13,7 +13,7 @@ export type Team = {
 
 export type MonthlyScore = {
   id: string;
-  week_id: string;
+  month_id: string;
   team_id: string;
   green_score_pct: number;
   business_amount: number;
